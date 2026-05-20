@@ -310,19 +310,19 @@ class TplinkDecoClientUpdateCoordinator(DataUpdateCoordinator):
         old_clients = self.data
         clients = {}
         client_added = False
-        # List clients for all decos if _deco_update_coordinator is not provided
-        deco_macs = self._deco_update_coordinator.data.decos.keys()
+        # Per-node client_list 502s on newer Deco firmware (e.g. XE75 1.3.x), and
+        # the global client list has no per-node attribution. Do one global query
+        # and attribute every client to the master Deco so its client-count sensor
+        # reflects the whole mesh (satellites read 0).
+        master_deco = self._deco_update_coordinator.data.master_deco
+        deco_macs = [master_deco.mac if master_deco is not None else "default"]
         utc_point_in_time = dt_util.utcnow()
-        # Send list client requests in parallel for each deco
 
-        deco_client_responses = await asyncio.gather(
-            *[
-                async_call_and_propagate_config_error(
-                    self.api.async_list_clients, deco_mac
-                )
-                for deco_mac in deco_macs
-            ]
-        )
+        deco_client_responses = [
+            await async_call_and_propagate_config_error(
+                self.api.async_list_clients
+            )
+        ]
 
         if len(deco_client_responses) > 0:
             # deco_macs is not subscriptable, must be iterated
